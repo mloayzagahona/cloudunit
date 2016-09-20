@@ -148,12 +148,7 @@ public abstract class AbstractModuleControllerTestIT extends TestCase {
             securityContext);
 
         // create an application server
-        String jsonString = "{\"applicationName\":\"" + applicationName + "\", \"serverName\":\"" + server + "\"}";
-        mockMvc.perform(post("/application")
-        		.session(session)
-				.contentType(MediaType.APPLICATION_JSON)
-				.content(jsonString))
-        	.andExpect(status().isOk());
+        createApplication(applicationName, server);
     }
 
     @After
@@ -162,10 +157,7 @@ public abstract class AbstractModuleControllerTestIT extends TestCase {
 
         logger.info("Delete application : " + applicationName);
 
-        mockMvc.perform(delete("/application/" + applicationName)
-                .session(session)
-                .contentType(MediaType.APPLICATION_JSON))
-            .andExpect(status().isOk());
+        deleteApplication(applicationName);
 
         SecurityContextHolder.clearContext();
         session.invalidate();
@@ -174,45 +166,29 @@ public abstract class AbstractModuleControllerTestIT extends TestCase {
     @Test
     public void test00_FailToAddModuleBecauseBadAppName() throws Exception {
         logger.info("Cannot add a module because application name missing");
-        String jsonString = "{\"applicationName\":\"" + "" + "\", \"imageName\":\"" + module + "\"}";
-        ResultActions resultats = mockMvc.perform(post("/module")
-            .session(session)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(jsonString));
+        ResultActions resultats = createModule("", module);
         resultats.andExpect(status().is4xxClientError());
     }
 
     @Test
     public void test01_FailToAddModuleBecauseAppNonExist() throws Exception {
         logger.info("Cannot add a module because application name missing");
-        String jsonString = "{\"applicationName\":\"" + "UFO" + "\", \"imageName\":\"" + module + "\"}";
-        ResultActions resultats = mockMvc.perform(post("/module")
-            .session(session)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(jsonString));
+        ResultActions resultats = createModule("UFO", module);
         resultats.andExpect(status().is4xxClientError());
     }
 
     @Test
     public void test02_FailToAddModuleBecauseModuleEmpty() throws Exception {
         logger.info("Cannot add a module because module name empty");
-        String jsonString = "{\"applicationName\":\"" + "REALAPP" + "\", \"imageName\":\"" + "" + "\"}";
-        ResultActions resultats = mockMvc.perform(post("/module")
-            .session(session)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(jsonString));
+        ResultActions resultats = createModule(applicationName, "");
         resultats.andExpect(status().is4xxClientError());
     }
 
     @Test
     public void test03_FailToAddModuleBecauseModuleNonExisting() throws Exception {
         logger.info("Cannot add a module because module name empty");
-        String jsonString = "{\"applicationName\":\"" + "REALAPP" + "\", \"imageName\":\"" + "UFO" + "\"}";
-        ResultActions resultats = mockMvc.perform(post("/module")
-            .session(session)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(jsonString));
-        resultats.andExpect(status().is4xxClientError());
+        ResultActions resultats = createModule(applicationName, "UFO");
+        resultats.andExpect(status().is5xxServerError());
     }
 
     @Test
@@ -220,37 +196,29 @@ public abstract class AbstractModuleControllerTestIT extends TestCase {
         logger.info("Create an application, add a " + module + " module and delete it");
 
         // verify if app exists
-        ResultActions resultats = mockMvc.perform(get("/application/" + applicationName).session(session).contentType(MediaType.APPLICATION_JSON));
+        ResultActions resultats = getApplicationInformations(applicationName);
         resultats.andExpect(jsonPath("name").value(applicationName.toLowerCase()));
 
         // add a module
-        String jsonString = "{\"applicationName\":\"" + applicationName + "\", \"imageName\":\"" + module + "\"}";
-        resultats = mockMvc.perform(post("/module")
-            .session(session)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(jsonString));
+        resultats = createModule(applicationName, module);
         resultats.andExpect(status().isOk());
 
         // Expected values
         String genericModule = cuInstanceName.toLowerCase() + "-johndoe-" + applicationName.toLowerCase() + "-" + module;
 
         // get the detail of the applications to verify modules addition
-        resultats = mockMvc.perform(get("/application/" + applicationName)
-            .session(session).contentType(MediaType.APPLICATION_JSON)).andDo(print());
+        resultats = getApplicationInformations(applicationName).andDo(print());
         resultats
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.modules[0].status").value("START"))
             .andExpect(jsonPath("$.modules[0].name").value(genericModule));
 
         // remove a module
-        resultats = mockMvc.perform(delete("/module/" + applicationName + "/" + genericModule)
-            .session(session)
-            .contentType(MediaType.APPLICATION_JSON));
+        resultats = deleteModule(applicationName, genericModule);
         resultats.andExpect(status().isOk());
 
         // get the detail of the applications to verify modules addition
-        resultats = mockMvc.perform(get("/application/" + applicationName)
-            .session(session).contentType(MediaType.APPLICATION_JSON)).andDo(print());
+        resultats = getApplicationInformations(applicationName).andDo(print());
         resultats
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.modules[0]").doesNotExist());
@@ -261,34 +229,25 @@ public abstract class AbstractModuleControllerTestIT extends TestCase {
         logger.info("Create an application, add two " + module + " modules, stop them then delete all");
 
         // verify if app exists
-        ResultActions resultats = mockMvc.perform(get("/application/" + applicationName).session(session).contentType(MediaType.APPLICATION_JSON));
+        ResultActions resultats = getApplicationInformations(applicationName);
         resultats.andExpect(jsonPath("name").value(applicationName.toLowerCase()));
 
         // add a first module
-        String jsonString = "{\"applicationName\":\"" + applicationName + "\", \"imageName\":\"" + module + "\"}";
-        resultats = mockMvc.perform(post("/module")
-            .session(session)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(jsonString));
+        resultats = createModule(applicationName, module);
         resultats.andExpect(status().isOk());
 
         // Expected values
         String module1 = cuInstanceName.toLowerCase() + "-johndoe-" + applicationName.toLowerCase() + "-" + module;
 
         // get the detail of the applications to verify modules addition
-        resultats = mockMvc.perform(get("/application/" + applicationName)
-            .session(session).contentType(MediaType.APPLICATION_JSON)).andDo(print());
+        resultats = getApplicationInformations(applicationName);
         resultats
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.modules[0].status").value("START"))
             .andExpect(jsonPath("$.modules[0].name").value(module1));
 
         // add a second module
-        jsonString = "{\"applicationName\":\"" + applicationName + "\", \"imageName\":\"" + module + "\"}";
-        resultats = mockMvc.perform(post("/module")
-            .session(session)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(jsonString));
+        resultats = createModule(applicationName, module);
         resultats.andExpect(status().is4xxClientError());
     }
 
@@ -297,15 +256,11 @@ public abstract class AbstractModuleControllerTestIT extends TestCase {
         logger.info("Create an application, add a " + module + " modules, restart");
 
         // verify if app exists
-        ResultActions resultats = mockMvc.perform(get("/application/" + applicationName).session(session).contentType(MediaType.APPLICATION_JSON));
+        ResultActions resultats = getApplicationInformations(applicationName);
         resultats.andExpect(jsonPath("name").value(applicationName.toLowerCase()));
 
         // add a first module
-        String jsonString = "{\"applicationName\":\"" + applicationName + "\", \"imageName\":\"" + module + "\"}";
-        resultats = mockMvc.perform(post("/module")
-            .session(session)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(jsonString));
+        resultats = createModule(applicationName, module);
         resultats.andDo(print());
         resultats.andExpect(status().isOk());
 
@@ -313,20 +268,17 @@ public abstract class AbstractModuleControllerTestIT extends TestCase {
         String module1 = cuInstanceName.toLowerCase() + "-johndoe-" + applicationName.toLowerCase() + "-" + module;
 
         // Stop the application
-        jsonString = "{\"applicationName\":\"" + applicationName + "\"}";
-        resultats = mockMvc.perform(post("/application/stop").session(session).contentType(MediaType.APPLICATION_JSON).content(jsonString));
+        resultats = stopApplication(applicationName);
         resultats.andDo(print());
         resultats.andExpect(status().isOk());
 
         // Start the application
-        jsonString = "{\"applicationName\":\"" + applicationName + "\"}";
-        resultats = mockMvc.perform(post("/application/start").session(session).contentType(MediaType.APPLICATION_JSON).content(jsonString));
+        resultats = startApplication(applicationName);
         resultats.andDo(print());
         resultats.andExpect(status().isOk());
 
         // get the detail of the applications to verify modules addition
-        resultats = mockMvc.perform(get("/application/" + applicationName)
-                .session(session).contentType(MediaType.APPLICATION_JSON)).andDo(print());
+        resultats = getApplicationInformations(applicationName);
         resultats.andDo(print());
         resultats
                 .andExpect(status().isOk())
@@ -338,41 +290,32 @@ public abstract class AbstractModuleControllerTestIT extends TestCase {
         ModuleResource request = ModuleResource.of()
                 .withPublishPort(true)
                 .build();
-        String jsonString = objectMapper.writeValueAsString(request);
-        return mockMvc.perform(put("/module/" + id)
-                .session(session)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(jsonString))
+        return updateModule(request, id)
             .andDo(print());
     }
 
-    public ResultActions requestAddModule() throws Exception {
+    /*public ResultActions requestAddModule() throws Exception {
         String jsonString = "{\"applicationName\":\"" + applicationName + "\", \"imageName\":\"" + module + "\"}";
-        return mockMvc.perform(post("/module")
-                .session(session)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(jsonString))
+        return createModule(applicationName, module)
             .andDo(print());
     }
 
     public ResultActions requestApplication() throws Exception {
-        return mockMvc.perform(get("/application/" + applicationName)
-                .session(session)
-                .contentType(MediaType.APPLICATION_JSON))
+        return getApplicationInformations(applicationName)
             .andDo(print());
-    }
+    }*/
 
     @Test
     public void test_PublishPort() throws Exception {
         logger.info("Publish module port for external access");
 
-        requestAddModule()
+        createModule(applicationName, module)
         	.andExpect(status().isOk());
 
         SpyMatcherDecorator<Integer> responseModuleIdSpy = new SpyMatcherDecorator<>();
         SpyMatcherDecorator<String> forwardedPort = new SpyMatcherDecorator<>();
 
-        requestApplication()
+        getApplicationInformations(applicationName)
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.modules[0].id", responseModuleIdSpy));
 
@@ -380,7 +323,7 @@ public abstract class AbstractModuleControllerTestIT extends TestCase {
         requestPublishPort(moduleId)
             .andExpect(status().isOk());
 
-        requestApplication()
+        getApplicationInformations(applicationName)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.modules[0].forwardedPort", forwardedPort));
 
@@ -441,5 +384,62 @@ public abstract class AbstractModuleControllerTestIT extends TestCase {
         }
     }
 
+    private ResultActions createApplication(String name, String server) throws Exception {
+        String jsonString = "{\"applicationName\":\"" + name + "\", \"serverName\":\"" + server + "\"}";
+        ResultActions actions = mockMvc.perform(post("/application")
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonString));
+        return actions;
+    }
+
+    private void deleteApplication(String name) throws Exception {
+        mockMvc.perform(delete("/application/" + name)
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+    }
+
+    private ResultActions getApplicationInformations(String name) throws Exception {
+        ResultActions actions = mockMvc.perform(get("/application/" + name)
+                .session(session).contentType(MediaType.APPLICATION_JSON));
+        return actions;
+    }
+
+    private ResultActions startApplication(String name) throws Exception {
+        String jsonString = "{\"applicationName\":\"" + name + "\"}";
+        ResultActions actions = mockMvc.perform(post("/application/start").session(session).contentType(MediaType.APPLICATION_JSON).content(jsonString));
+        return actions;
+    }
+
+    private ResultActions stopApplication(String name) throws Exception {
+        String jsonString = "{\"applicationName\":\"" + name + "\"}";
+        ResultActions actions = mockMvc.perform(post("/application/stop").session(session).contentType(MediaType.APPLICATION_JSON).content(jsonString));
+        return actions;
+    }
+
+    private ResultActions createModule(String name, String image) throws Exception {
+        String jsonString = "{\"applicationName\":\"" + name + "\", \"imageName\":\"" + image + "\"}";
+        ResultActions actions = mockMvc.perform(post("/module")
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonString));
+        return actions;
+    }
+
+    private ResultActions deleteModule(String name, String module) throws Exception {
+        ResultActions actions = mockMvc.perform(delete("/module/" + name + "/" + module)
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON));
+        return actions;
+    }
+
+    private ResultActions updateModule(ModuleResource request, Integer id) throws Exception {
+        String jsonString = objectMapper.writeValueAsString(request);
+        return mockMvc.perform(put("/module/" + id)
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonString));
+    }
 
 }
